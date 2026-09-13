@@ -1,0 +1,34 @@
+-- Load the CSV data
+raw_data = LOAD '/ecommerce/inputs/sales_data.csv' USING PigStorage(',') AS (
+    order_id:chararray,
+    order_date:chararray,
+    customer_id:chararray,
+    customer_name:chararray,
+    city:chararray,
+    product_id:chararray,
+    product_name:chararray,
+    category:chararray,
+    quantity:int,
+    unit_price:double,
+    revenue:double,
+    payment_method:chararray
+);
+
+-- Remove the header row AND any accidental blank/null category rows
+filtered_data = FILTER raw_data BY (order_id != 'order_id') AND (category IS NOT NULL);
+
+-- Group data by category
+grouped_by_category = GROUP filtered_data BY category;
+
+-- Calculate total revenue, quantity and orders (rounded revenue for readability)
+category_sales = FOREACH grouped_by_category GENERATE
+    group AS category,
+    ROUND(SUM(filtered_data.revenue)) AS total_revenue,
+    SUM(filtered_data.quantity) AS total_quantity,
+    COUNT(filtered_data) AS total_orders;
+
+-- Sort by total revenue descending
+sorted_sales = ORDER category_sales BY total_revenue DESC;
+
+-- Store result in HDFS
+STORE sorted_sales INTO '/ecommerce/pig_output/category_sales' USING PigStorage(',');
